@@ -6,31 +6,47 @@ import time
 import csv
 import smtplib
 from email.message import EmailMessage
+import easyocr
+reader = easyocr.Reader(['en'])
+
+# ================== CAMERA INFO ==================
+CAMERA_ID = "CAM_543"
+
+CAMERA_LOCATION = {
+    "lat": 26.9124,
+    "lon": 75.7873,
+    "place": "Jaipur Intersection"
+}
 
 # ================== EMAIL CONFIG ==================
 EMAIL_SENDER = "anamolyalert@gmail.com"
 EMAIL_PASSWORD = "nceubqmfdbbdvehi"  
 EMAIL_RECEIVER = "akarshkumar2004@gmail.com"
 
-def send_email(image_path, timestamp, confidence):
+def send_email(image_path, timestamp, confidence, plates):
     msg = EmailMessage()
     msg["Subject"] = "🚨 Accident Detected!"
     msg["From"] = EMAIL_SENDER
     msg["To"] = EMAIL_RECEIVER
 
     msg.set_content(f"""
-Accident detected!
+🚨 ACCIDENT ALERT 🚨
+
+Camera ID: {CAMERA_ID}
+Location: {CAMERA_LOCATION['place']}
+Coordinates: ({CAMERA_LOCATION['lat']}, {CAMERA_LOCATION['lon']})
 
 Time: {timestamp} seconds
 Confidence: {confidence}%
 
-Check attached image.
+Detected Plates: {', '.join(plates)}
+
+Immediate attention required.
 """)
 
     with open(image_path, "rb") as f:
-        img_data = f.read()
         msg.add_attachment(
-            img_data,
+            f.read(),
             maintype="image",
             subtype="jpeg",
             filename=os.path.basename(image_path)
@@ -53,7 +69,14 @@ os.makedirs(SAVE_FOLDER, exist_ok=True)
 
 csv_file = open("accident_log.csv", "w", newline="")
 csv_writer = csv.writer(csv_file)
-csv_writer.writerow(["timestamp_sec", "confidence", "image_path"])
+csv_writer.writerow([
+    "timestamp_sec",
+    "confidence",
+    "image_path",
+    "camera_id",
+    "location",
+    "plates"
+])
 
 # ================== CONTROL ==================
 last_saved_time = 0
@@ -70,6 +93,22 @@ def _get_video_path():
             return os.path.join(show_dir, filename)
 
     raise FileNotFoundError("No video file was found inside the 'show' folder.")
+
+def extract_number_plate(frame):
+    try:
+        results = reader.readtext(frame)
+        plates = []
+
+        for (bbox, text, prob) in results:
+            # basic filter (plates usually alphanumeric)
+            if len(text) >= 5:
+                plates.append(text)
+
+        return plates if plates else ["Not Detected"]
+
+    except Exception as e:
+        print("OCR Error:", e)
+        return ["OCR Failed"]
 
 
 def startapplication():
@@ -106,20 +145,33 @@ def startapplication():
         # ================== ACCIDENT DETECTED ==================
         if pred == "Accident":
 
-            # Save frame with cooldown
             if current_time - last_saved_time > SAVE_COOLDOWN:
+
                 filename = f"{SAVE_FOLDER}/accident_{round(timestamp,2)}s_{confidence}.jpg"
                 cv2.imwrite(filename, frame)
 
-                csv_writer.writerow([round(timestamp, 2), confidence, filename])
+                # 🔥 OCR HERE
+                plates = extract_number_plate(frame)
+
+                # 🔥 LOG CSV WITH MORE DATA
+                csv_writer.writerow([
+                    round(timestamp, 2),
+                    confidence,
+                    filename,
+                    CAMERA_ID,
+                    CAMERA_LOCATION['place'],
+                    ",".join(plates)
+                ])
+
                 print(f"🚨 Accident saved: {filename}")
+                print(f"🔍 Plates: {plates}")
 
                 last_saved_time = current_time
 
-                # Send email ONLY once per event
+                # 🔥 EMAIL
                 if not email_sent:
                     try:
-                        send_email(filename, round(timestamp, 2), confidence)
+                        send_email(filename, round(timestamp, 2), confidence, plates)
                         email_sent = True
                     except Exception as e:
                         print("❌ Email failed:", e)
