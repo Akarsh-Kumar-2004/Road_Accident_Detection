@@ -1,0 +1,10 @@
+Date: 7/4/2026
+Time: 17:21
+Phone Number: +919540034873
+Message: ACCIDENT ALERTCamera ID: PC_WEBCAM_VIDEODetected PC location: Bagru, Jaipur, Rajasthan, IndiaCoordinates: (26.839901, 75.561668)Google Maps location: https://www.google.com/maps/search/?api=1&query=26.839901,75.561668Video timestamp: 9.04 secondsLegacy classifier result: AccidentLegacy classifier confidence: 56.59%Temporal support score: 3.43%Summary: Temporal accident probability 0.03; vehicles: carDetected plates: 1901072690312, GPIPCamNearest hospital: Bharadwaj HospitalHospital route: https://www.google.com/maps/dir/?api=1&origin=26.839901,75.561668&destination=26.8216987,75.5439261&travelmode=drivingAttached map image: incident_map_9.04s.png
+--------------------
+Date: 7/4/2026
+Time: 17:30
+Phone Number: +919540034873
+Message: ACCIDENT ALERTCamera ID: PC_WEBCAM_VIDEODetected PC location: Bagru, Jaipur, Rajasthan, IndiaCoordinates: (26.839901, 75.561668)Google Maps location: https://www.google.com/maps/search/?api=1&query=26.839901,75.561668Video timestamp: 9.04 secondsLegacy classifier result: AccidentLegacy classifier confidence: 56.59%Temporal support score: 3.43%Summary: Temporal accident probability 0.03; vehicles: carDetected plates: 1901072690312, GPIPCamNearest hospital: Bharadwaj HospitalHospital route: https://www.google.com/maps/dir/?api=1&origin=26.839901,75.561668&destination=26.8216987,75.5439261&travelmode=drivingAttached map image: incident_map_9.04s.png
+--------------------

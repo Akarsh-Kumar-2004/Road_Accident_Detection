@@ -1,11 +1,10 @@
 numpy
-pandas
 matplotlib
 opencv-python
 tensorflow
 keras
 pydot
 easyocr
-streamlit 
-folium 
-streamlit-folium
+ultralytics
+requests
+pywhatkit

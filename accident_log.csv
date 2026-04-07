@@ -1,3 +1,3 @@
-timestamp_sec,confidence,image_path,camera_id,location,plates
-9.04,56.59,accident_frames/accident_9.04s_56.59000015258789.jpg,CAM_543,Jaipur Intersection,"19 01-07269.03.12,GPIP Cam"
-9.08,69.04,accident_frames/accident_9.08s_69.04000091552734.jpg,CAM_543,Jaipur Intersection,"19 01-7269.03.12,GPIP Cam"
+timestamp_sec,temporal_probability,image_path,camera_id,location,latitude,longitude,vehicles,fire_regions,plates,nearest_hospital,nearest_police_station,legacy_classifier
+9.04,0.0343,accident_frames\accident_9.04s_0.03.jpg,PC_WEBCAM_VIDEO,"Bagru, Jaipur, Rajasthan, India",26.839901,75.561668,car,0,"1901072690312,GPIPCam",Bharadwaj Hospital,Unavailable,Accident:0.5659
+9.08,0.0344,accident_frames\accident_9.08s_0.03.jpg,PC_WEBCAM_VIDEO,"Bagru, Jaipur, Rajasthan, India",26.839901,75.561668,car,0,"190172690312,GPIPCam",Bharadwaj Hospital,Unavailable,Accident:0.6904

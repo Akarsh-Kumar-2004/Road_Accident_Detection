@@ -45,6 +45,39 @@ This program includes 4 things.
 3. `detection.py`: This file loads the Accident Detection system with the help of `model.json` and `model_weights.h5` files.
 4. `camera.py`: It packs the camera and executes the `detection.py` file on the video dividing it frame by frame and displaying the percentage of the prediction in the accident (if present) in the frame.
 
-## 6. Future Work
+## 6. Upgraded Pipeline
 
-We can use an alarm system that can call the nearest police station in case of an accident and also alert them of the severity of the accident.
+The original repository is frame-level classification only. The improved runtime in this workspace now adds:
+
+1. `incident_pipeline.py`: YOLOv8-based vehicle detection plus accident-understanding heuristics for collision zones, fire/smoke, and possible overturned vehicles.
+2. `upgraded_camera.py`: sequence-aware alerting that scores multiple frames over time and only raises an alert when the temporal signal is strong enough.
+3. `location_services.py`: resolves the current PC location through IP geolocation and finds nearby hospitals and route links.
+4. `enhanced_map_app.py`: shows the incident point, nearest hospitals, and a route on an interactive map.
+
+## 7. How To Run The Upgraded Version
+
+Install dependencies:
+
+`pip install -r requirements.txt`
+
+Run the upgraded detector:
+
+`python main.py`
+
+Run the enhanced map:
+
+`streamlit run enhanced_map_app.py`
+
+Optional environment variables for email alerts:
+
+`ACCIDENT_ALERT_EMAIL_SENDER`
+`ACCIDENT_ALERT_EMAIL_PASSWORD`
+`ACCIDENT_ALERT_EMAIL_RECEIVER`
+`ACCIDENT_CAMERA_ID`
+`ACCIDENT_TEMPORAL_WEIGHTS`
+
+## 8. Notes
+
+1. The temporal module supports a GRU path when you later provide trained weights through `ACCIDENT_TEMPORAL_WEIGHTS`.
+2. Vehicle detection uses pretrained YOLOv8. Collision-zone, fire/smoke, and overturn understanding are implemented as practical visual heuristics until you train a dedicated accident dataset for those classes.
+3. PC location is estimated from network geolocation because a video file does not carry a real roadside camera position.

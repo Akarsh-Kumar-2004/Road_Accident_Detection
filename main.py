@@ -1,3 +1,3 @@
-from camera import startapplication
+from upgraded_camera import startapplication
 
 startapplication()
