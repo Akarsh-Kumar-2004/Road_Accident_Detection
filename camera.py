@@ -8,6 +8,7 @@ import smtplib
 from email.message import EmailMessage
 import easyocr
 from location_services import get_current_pc_location
+from plate_reader import detect_number_plate, save_plate_image
 reader = easyocr.Reader(['en'])
 
 # ================== CAMERA INFO ==================
@@ -18,7 +19,7 @@ EMAIL_SENDER = "anamolyalert@gmail.com"
 EMAIL_PASSWORD = "nceubqmfdbbdvehi"  
 EMAIL_RECEIVER = "akarshkumar2004@gmail.com"
 
-def send_email(image_path, timestamp, confidence, plates, location):
+def send_email(image_path, plate_image_path, timestamp, confidence, plate_text, location):
     msg = EmailMessage()
     msg["Subject"] = "🚨 Accident Detected!"
     msg["From"] = EMAIL_SENDER
@@ -34,7 +35,7 @@ Coordinates: ({location['lat']}, {location['lon']})
 Time: {timestamp} seconds
 Confidence: {confidence}%
 
-Detected Plates: {', '.join(plates)}
+Detected Plate: {plate_text}
 
 Immediate attention required.
 """)
@@ -46,6 +47,14 @@ Immediate attention required.
             subtype="jpeg",
             filename=os.path.basename(image_path)
         )
+    if plate_image_path and os.path.exists(plate_image_path):
+        with open(plate_image_path, "rb") as plate_file:
+            msg.add_attachment(
+                plate_file.read(),
+                maintype="image",
+                subtype="jpeg",
+                filename=os.path.basename(plate_image_path)
+            )
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
         smtp.login(EMAIL_SENDER, EMAIL_PASSWORD)
@@ -70,7 +79,8 @@ csv_writer.writerow([
     "image_path",
     "camera_id",
     "location",
-    "plates"
+    "plate_text",
+    "plate_image_path"
 ])
 
 # ================== CONTROL ==================
@@ -91,19 +101,27 @@ def _get_video_path():
 
 def extract_number_plate(frame):
     try:
-        results = reader.readtext(frame)
-        plates = []
-
-        for (bbox, text, prob) in results:
-            # basic filter (plates usually alphanumeric)
-            if len(text) >= 5:
-                plates.append(text)
-
-        return plates if plates else ["Not Detected"]
+        frame_height, frame_width = frame.shape[:2]
+        candidate = detect_number_plate(frame, [(0, 0, frame_width, frame_height)], reader)
+        if candidate is None:
+            return "Not Detected", None
+        return candidate.text, candidate
 
     except Exception as e:
         print("OCR Error:", e)
-        return ["OCR Failed"]
+        return "OCR Failed", None
+
+
+def _draw_plate_overlay(frame, plate_candidate, plate_text):
+    if plate_candidate is None:
+        return frame
+
+    output = frame.copy()
+    x1, y1, x2, y2 = plate_candidate.bbox
+    cv2.rectangle(output, (x1, y1), (x2, y2), (0, 215, 255), 2)
+    cv2.putText(output, f"Plate: {plate_text}", (x1, max(y1 - 10, 20)),
+                font, 0.6, (0, 215, 255), 2)
+    return output
 
 
 def startapplication():
@@ -145,10 +163,16 @@ def startapplication():
             if current_time - last_saved_time > SAVE_COOLDOWN:
 
                 filename = f"{SAVE_FOLDER}/accident_{round(timestamp,2)}s_{confidence}.jpg"
-                cv2.imwrite(filename, frame)
+                plate_text, plate_candidate = extract_number_plate(frame)
+                alert_frame = _draw_plate_overlay(frame, plate_candidate, plate_text)
+                cv2.imwrite(filename, alert_frame)
+                plate_image_path = None
+                if plate_candidate is not None:
+                    plate_image_path = f"{SAVE_FOLDER}/plate_{round(timestamp,2)}s.jpg"
+                    save_plate_image(plate_candidate, plate_image_path)
 
                 # 🔥 OCR HERE
-                plates = extract_number_plate(frame)
+                # OCR is now limited to a plate-focused crop instead of the whole frame.
 
                 # 🔥 LOG CSV WITH MORE DATA
                 csv_writer.writerow([
@@ -157,18 +181,21 @@ def startapplication():
                     filename,
                     CAMERA_ID,
                     location['place'],
-                    ",".join(plates)
+                    plate_text,
+                    plate_image_path or ""
                 ])
 
                 print(f"🚨 Accident saved: {filename}")
-                print(f"🔍 Plates: {plates}")
+                print(f"Plate: {plate_text}")
+                if plate_image_path:
+                    print(f"Plate image saved: {plate_image_path}")
 
                 last_saved_time = current_time
 
                 # 🔥 EMAIL
                 if not email_sent:
                     try:
-                        send_email(filename, round(timestamp, 2), confidence, plates, location)
+                        send_email(filename, plate_image_path, round(timestamp, 2), confidence, plate_text, location)
                         email_sent = True
                     except Exception as e:
                         print("❌ Email failed:", e)

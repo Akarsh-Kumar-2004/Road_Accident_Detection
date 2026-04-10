@@ -18,6 +18,7 @@ from location_services import (
     get_nearest_hospitals,
     get_nearest_police_stations,
 )
+from plate_reader import detect_number_plate, save_plate_image
 from video_viewer import FrameViewer
 
 try:
@@ -47,7 +48,7 @@ def build_alert_message(
     timestamp,
     state,
     location,
-    plates,
+    plate_text,
     hospitals,
     legacy_pred,
     legacy_confidence,
@@ -74,7 +75,7 @@ def build_alert_message(
             f"Legacy classifier confidence: {legacy_confidence * 100:.2f}%",
             f"Temporal support score: {state.temporal_probability * 100:.2f}%",
             f"Summary: {state.summary}",
-            f"Detected plates: {', '.join(plates)}",
+            f"Detected plate: {plate_text}",
             f"Nearest hospital: {nearest_hospital['name'] if nearest_hospital else 'Unavailable'}",
             f"Hospital route: {hospital_route}",
             f"Attached map image: incident_map_{timestamp:.2f}s.png",
@@ -85,10 +86,11 @@ def build_alert_message(
 def send_email(
     image_path,
     map_path,
+    plate_image_path,
     timestamp,
     state,
     location,
-    plates,
+    plate_text,
     hospitals,
     police_stations,
     legacy_pred,
@@ -104,7 +106,7 @@ def send_email(
             timestamp,
             state,
             location,
-            plates,
+            plate_text,
             hospitals,
             legacy_pred,
             legacy_confidence,
@@ -125,6 +127,14 @@ def send_email(
             subtype="png",
             filename=os.path.basename(map_path),
         )
+    if plate_image_path and os.path.exists(plate_image_path):
+        with open(plate_image_path, "rb") as plate_file:
+            msg.add_attachment(
+                plate_file.read(),
+                maintype="image",
+                subtype="jpeg",
+                filename=os.path.basename(plate_image_path),
+            )
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
         smtp.login(EMAIL_SENDER, EMAIL_PASSWORD)
@@ -137,7 +147,7 @@ def send_whatsapp_alert(
     timestamp,
     state,
     location,
-    plates,
+    plate_text,
     hospitals,
     legacy_pred,
     legacy_confidence,
@@ -150,7 +160,7 @@ def send_whatsapp_alert(
         timestamp,
         state,
         location,
-        plates,
+        plate_text,
         hospitals,
         legacy_pred,
         legacy_confidence,
@@ -180,18 +190,15 @@ def _get_video_path():
     raise FileNotFoundError("No video file was found inside the 'show' folder.")
 
 
-def extract_number_plate(frame):
+def extract_number_plate(frame, vehicles):
     try:
-        results = reader.readtext(frame)
-        plates = []
-        for _, text, _ in results:
-            cleaned_text = "".join(character for character in text if character.isalnum())
-            if len(cleaned_text) >= 5:
-                plates.append(cleaned_text)
-        return plates if plates else ["Not Detected"]
+        candidate = detect_number_plate(frame, [vehicle.bbox for vehicle in vehicles], reader)
+        if candidate is None:
+            return "Not Detected", None
+        return candidate.text, candidate
     except Exception as exc:
         print("OCR error:", exc)
-        return ["OCR Failed"]
+        return "OCR Failed", None
 
 
 def _open_log_writer():
@@ -208,7 +215,8 @@ def _open_log_writer():
             "longitude",
             "vehicles",
             "fire_regions",
-            "plates",
+            "plate_text",
+            "plate_image_path",
             "nearest_hospital",
             "nearest_police_station",
             "legacy_classifier",
@@ -221,6 +229,25 @@ def _format_places(places):
     if not places:
         return "Unavailable"
     return "; ".join(f"{place['name']} ({place['lat']:.5f}, {place['lon']:.5f})" for place in places)
+
+
+def _draw_plate_overlay(frame, plate_candidate, plate_text):
+    if plate_candidate is None:
+        return frame
+
+    output = frame.copy()
+    x1, y1, x2, y2 = plate_candidate.bbox
+    cv2.rectangle(output, (x1, y1), (x2, y2), (0, 215, 255), 2)
+    cv2.putText(
+        output,
+        f"Plate: {plate_text}",
+        (x1, max(y1 - 10, 20)),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (0, 215, 255),
+        2,
+    )
+    return output
 
 
 def startapplication():
@@ -312,8 +339,16 @@ def startapplication():
                     SAVE_FOLDER,
                     f"accident_{timestamp:.2f}s_{state.temporal_probability:.2f}.jpg",
                 )
-                cv2.imwrite(filename, annotated_frame)
-                plates = extract_number_plate(frame)
+                plate_text, plate_candidate = extract_number_plate(frame, state.vehicles)
+                annotated_event_frame = _draw_plate_overlay(annotated_frame, plate_candidate, plate_text)
+                cv2.imwrite(filename, annotated_event_frame)
+                plate_image_path = None
+                if plate_candidate is not None:
+                    plate_image_path = os.path.join(
+                        SAVE_FOLDER,
+                        f"plate_{timestamp:.2f}s.jpg",
+                    )
+                    save_plate_image(plate_candidate, plate_image_path)
 
                 csv_writer.writerow(
                     [
@@ -326,7 +361,8 @@ def startapplication():
                         location["lon"],
                         ",".join(vehicle.label for vehicle in state.vehicles) or "None",
                         len(state.fire_regions),
-                        ",".join(plates),
+                        plate_text,
+                        plate_image_path or "",
                         hospitals[0]["name"] if hospitals else "Unavailable",
                         police_stations[0]["name"] if police_stations else "Unavailable",
                         f"{legacy_pred}:{legacy_confidence:.4f}",
@@ -336,7 +372,9 @@ def startapplication():
 
                 print("Accident event saved:", filename)
                 print("Incident summary:", state.summary)
-                print("Detected plates:", plates)
+                print("Detected plate:", plate_text)
+                if plate_image_path:
+                    print("Plate image saved:", plate_image_path)
                 print("Nearby hospitals:", _format_places(hospitals))
                 print("Nearby police stations:", _format_places(police_stations))
 
@@ -357,7 +395,8 @@ def startapplication():
                     "longitude": location["lon"],
                     "vehicles": ",".join(vehicle.label for vehicle in state.vehicles) or "None",
                     "fire_regions": len(state.fire_regions),
-                    "plates": ",".join(plates),
+                    "plates": plate_text,
+                    "plate_image_path": plate_image_path,
                     "nearest_hospital": hospitals[0]["name"] if hospitals else "Unavailable",
                     "nearest_police_station": police_stations[0]["name"] if police_stations else "Unavailable",
                     "legacy_classifier": f"{legacy_pred}:{legacy_confidence:.4f}",
@@ -372,10 +411,11 @@ def startapplication():
                         send_email(
                             filename,
                             map_path,
+                            plate_image_path,
                             round(timestamp, 2),
                             state,
                             location,
-                            plates,
+                            plate_text,
                             hospitals,
                             police_stations,
                             legacy_pred,
@@ -389,7 +429,7 @@ def startapplication():
                             round(timestamp, 2),
                             state,
                             location,
-                            plates,
+                            plate_text,
                             hospitals,
                             legacy_pred,
                             legacy_confidence,

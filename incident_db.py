@@ -27,6 +27,7 @@ def init_database(db_path: str = DB_PATH) -> None:
                 vehicles TEXT,
                 fire_regions INTEGER NOT NULL,
                 plates TEXT,
+                plate_image_path TEXT,
                 nearest_hospital TEXT,
                 nearest_police_station TEXT,
                 legacy_classifier TEXT,
@@ -34,6 +35,10 @@ def init_database(db_path: str = DB_PATH) -> None:
             )
             """
         )
+        cursor.execute("PRAGMA table_info(incident_logs)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+        if "plate_image_path" not in existing_columns:
+            cursor.execute("ALTER TABLE incident_logs ADD COLUMN plate_image_path TEXT")
         connection.commit()
     finally:
         connection.close()
@@ -57,12 +62,13 @@ def insert_incident_log(record: Dict[str, object], db_path: str = DB_PATH) -> No
                 vehicles,
                 fire_regions,
                 plates,
+                plate_image_path,
                 nearest_hospital,
                 nearest_police_station,
                 legacy_classifier,
                 whatsapp_number
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record["timestamp_sec"],
@@ -76,6 +82,7 @@ def insert_incident_log(record: Dict[str, object], db_path: str = DB_PATH) -> No
                 record["vehicles"],
                 record["fire_regions"],
                 record["plates"],
+                record.get("plate_image_path"),
                 record["nearest_hospital"],
                 record["nearest_police_station"],
                 record["legacy_classifier"],
