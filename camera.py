@@ -7,23 +7,18 @@ import csv
 import smtplib
 from email.message import EmailMessage
 import easyocr
+from location_services import get_current_pc_location
 reader = easyocr.Reader(['en'])
 
 # ================== CAMERA INFO ==================
 CAMERA_ID = "CAM_543"
-
-CAMERA_LOCATION = {
-    "lat": 26.9124,
-    "lon": 75.7873,
-    "place": "Jaipur Intersection"
-}
 
 # ================== EMAIL CONFIG ==================
 EMAIL_SENDER = "anamolyalert@gmail.com"
 EMAIL_PASSWORD = "nceubqmfdbbdvehi"  
 EMAIL_RECEIVER = "akarshkumar2004@gmail.com"
 
-def send_email(image_path, timestamp, confidence, plates):
+def send_email(image_path, timestamp, confidence, plates, location):
     msg = EmailMessage()
     msg["Subject"] = "🚨 Accident Detected!"
     msg["From"] = EMAIL_SENDER
@@ -33,8 +28,8 @@ def send_email(image_path, timestamp, confidence, plates):
 🚨 ACCIDENT ALERT 🚨
 
 Camera ID: {CAMERA_ID}
-Location: {CAMERA_LOCATION['place']}
-Coordinates: ({CAMERA_LOCATION['lat']}, {CAMERA_LOCATION['lon']})
+Location: {location['place']}
+Coordinates: ({location['lat']}, {location['lon']})
 
 Time: {timestamp} seconds
 Confidence: {confidence}%
@@ -114,8 +109,10 @@ def extract_number_plate(frame):
 def startapplication():
     global last_saved_time, email_sent
 
+    location = get_current_pc_location()
     video_path = _get_video_path()
     print("Using video:", video_path)
+    print("Location source:", location["source"], "-", location["place"])
 
     video = cv2.VideoCapture(video_path)
 
@@ -159,7 +156,7 @@ def startapplication():
                     confidence,
                     filename,
                     CAMERA_ID,
-                    CAMERA_LOCATION['place'],
+                    location['place'],
                     ",".join(plates)
                 ])
 
@@ -171,7 +168,7 @@ def startapplication():
                 # 🔥 EMAIL
                 if not email_sent:
                     try:
-                        send_email(filename, round(timestamp, 2), confidence, plates)
+                        send_email(filename, round(timestamp, 2), confidence, plates, location)
                         email_sent = True
                     except Exception as e:
                         print("❌ Email failed:", e)
@@ -183,12 +180,14 @@ def startapplication():
         # ================== DISPLAY ==================
         color = (0, 0, 255) if pred == "Accident" else (0, 255, 0)
 
-        cv2.rectangle(frame, (0, 0), (420, 60), (0, 0, 0), -1)
+        cv2.rectangle(frame, (0, 0), (640, 85), (0, 0, 0), -1)
         cv2.putText(frame, f"{pred} {confidence}%", (20, 35),
                     font, 1, color, 2)
 
         cv2.putText(frame, f"Time: {round(timestamp,2)}s",
                     (20, 55), font, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, f"Location: {location['place'][:65]}",
+                    (20, 78), font, 0.55, (255, 255, 255), 2)
 
         cv2.imshow('Accident Detection', frame)
 

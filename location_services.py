@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import subprocess
 from typing import Dict, List, Optional, Tuple
 
 import requests
@@ -18,6 +20,18 @@ DEFAULT_LOCATION = {
 
 
 def get_current_pc_location() -> Dict[str, object]:
+    configured_location = _get_env_location()
+    if configured_location is not None:
+        return configured_location
+
+    windows_location = _get_windows_pc_location()
+    if windows_location is not None:
+        return windows_location
+
+    ip_location = _get_ip_geolocation()
+    if ip_location is not None:
+        return ip_location
+
     return DEFAULT_LOCATION.copy()
 
 
@@ -111,6 +125,201 @@ def build_openstreetmap_route_url(start: Tuple[float, float], end: Tuple[float, 
         "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car"
         f"&route={start[0]}%2C{start[1]}%3B{end[0]}%2C{end[1]}"
     )
+
+
+def _get_env_location() -> Optional[Dict[str, object]]:
+    lat = os.getenv("ACCIDENT_PC_LAT")
+    lon = os.getenv("ACCIDENT_PC_LON")
+    if not lat or not lon:
+        return None
+
+    try:
+        latitude = float(lat)
+        longitude = float(lon)
+    except ValueError:
+        return None
+
+    place = os.getenv("ACCIDENT_PC_PLACE", f"{latitude:.5f}, {longitude:.5f}")
+    city = os.getenv("ACCIDENT_PC_CITY")
+    region = os.getenv("ACCIDENT_PC_REGION")
+    country = os.getenv("ACCIDENT_PC_COUNTRY")
+
+    return {
+        "lat": latitude,
+        "lon": longitude,
+        "place": place,
+        "city": city or place,
+        "region": region or "Unknown",
+        "country": country or "Unknown",
+        "source": "environment-override",
+    }
+
+
+def _get_windows_pc_location() -> Optional[Dict[str, object]]:
+    if os.name != "nt":
+        return None
+
+    powershell_command = """
+    Add-Type -AssemblyName System.Device
+    $watcher = New-Object System.Device.Location.GeoCoordinateWatcher
+    $started = $watcher.TryStart($false, [TimeSpan]::FromSeconds(10))
+    if (-not $started -or $watcher.Position.Location.IsUnknown) {
+        exit 1
+    }
+
+    $location = $watcher.Position.Location
+    [pscustomobject]@{
+        lat = $location.Latitude
+        lon = $location.Longitude
+        accuracy = $location.HorizontalAccuracy
+    } | ConvertTo-Json -Compress
+    """
+
+    try:
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", powershell_command],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except Exception:
+        return None
+
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return None
+
+    try:
+        raw_location = json.loads(completed.stdout)
+        latitude = float(raw_location["lat"])
+        longitude = float(raw_location["lon"])
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
+
+    reverse_geocoded = _reverse_geocode(latitude, longitude) or {}
+    return _build_location_payload(
+        latitude,
+        longitude,
+        reverse_geocoded,
+        source="windows-location-service",
+    )
+
+
+def _get_ip_geolocation() -> Optional[Dict[str, object]]:
+    providers = [
+        ("https://ipapi.co/json/", _parse_ipapi_response),
+        ("https://ipwho.is/", _parse_ipwhois_response),
+    ]
+
+    for url, parser in providers:
+        try:
+            response = requests.get(url, timeout=8, headers=_request_headers())
+            response.raise_for_status()
+            parsed = parser(response.json())
+        except Exception:
+            continue
+
+        if parsed is not None:
+            return parsed
+
+    return None
+
+
+def _parse_ipapi_response(payload: Dict[str, object]) -> Optional[Dict[str, object]]:
+    latitude = payload.get("latitude")
+    longitude = payload.get("longitude")
+    if latitude is None or longitude is None:
+        return None
+
+    return _build_location_payload(
+        float(latitude),
+        float(longitude),
+        {
+            "city": payload.get("city"),
+            "state": payload.get("region"),
+            "country": payload.get("country_name"),
+            "display_name": ", ".join(
+                part for part in [payload.get("city"), payload.get("region"), payload.get("country_name")] if part
+            ),
+        },
+        source="ip-geolocation",
+    )
+
+
+def _parse_ipwhois_response(payload: Dict[str, object]) -> Optional[Dict[str, object]]:
+    if not payload.get("success", True):
+        return None
+
+    latitude = payload.get("latitude")
+    longitude = payload.get("longitude")
+    if latitude is None or longitude is None:
+        return None
+
+    return _build_location_payload(
+        float(latitude),
+        float(longitude),
+        {
+            "city": payload.get("city"),
+            "state": payload.get("region"),
+            "country": payload.get("country"),
+            "display_name": ", ".join(
+                part for part in [payload.get("city"), payload.get("region"), payload.get("country")] if part
+            ),
+        },
+        source="ip-geolocation",
+    )
+
+
+def _reverse_geocode(lat: float, lon: float) -> Optional[Dict[str, object]]:
+    try:
+        response = requests.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"format": "jsonv2", "lat": lat, "lon": lon},
+            headers=_request_headers(),
+            timeout=8,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception:
+        return None
+
+
+def _build_location_payload(
+    lat: float,
+    lon: float,
+    details: Dict[str, object],
+    *,
+    source: str,
+) -> Dict[str, object]:
+    address = details.get("address", {}) if isinstance(details.get("address"), dict) else {}
+    city = (
+        address.get("city")
+        or address.get("town")
+        or address.get("village")
+        or address.get("hamlet")
+        or details.get("city")
+        or "Unknown"
+    )
+    region = address.get("state") or details.get("state") or "Unknown"
+    country = address.get("country") or details.get("country") or "Unknown"
+    place = details.get("display_name") or ", ".join(part for part in [city, region, country] if part and part != "Unknown")
+    if not place:
+        place = f"{lat:.5f}, {lon:.5f}"
+
+    return {
+        "lat": lat,
+        "lon": lon,
+        "place": place,
+        "city": city,
+        "region": region,
+        "country": country,
+        "source": source,
+    }
+
+
+def _request_headers() -> Dict[str, str]:
+    return {"User-Agent": "AccidentDetectionSystem/1.0"}
+
 
 def _distance_sq(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return (lat1 - lat2) ** 2 + (lon1 - lon2) ** 2

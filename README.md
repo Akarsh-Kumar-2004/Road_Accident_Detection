@@ -51,7 +51,7 @@ The original repository is frame-level classification only. The improved runtime
 
 1. `incident_pipeline.py`: YOLOv8-based vehicle detection plus accident-understanding heuristics for collision zones, fire/smoke, and possible overturned vehicles.
 2. `upgraded_camera.py`: sequence-aware alerting that scores multiple frames over time and only raises an alert when the temporal signal is strong enough.
-3. `location_services.py`: resolves the current PC location through IP geolocation and finds nearby hospitals and route links.
+3. `location_services.py`: resolves the current PC location automatically by trying Windows location services first, then IP geolocation as a fallback, and finds nearby hospitals and route links.
 4. `enhanced_map_app.py`: shows the incident point, nearest hospitals, and a route on an interactive map.
 
 ## 7. How To Run The Upgraded Version
@@ -80,4 +80,6 @@ Optional environment variables for email alerts:
 
 1. The temporal module supports a GRU path when you later provide trained weights through `ACCIDENT_TEMPORAL_WEIGHTS`.
 2. Vehicle detection uses pretrained YOLOv8. Collision-zone, fire/smoke, and overturn understanding are implemented as practical visual heuristics until you train a dedicated accident dataset for those classes.
-3. PC location is estimated from network geolocation because a video file does not carry a real roadside camera position.
+3. PC location is resolved automatically at runtime. On Windows, the app first tries the device's own location service. If Windows location access is disabled or unavailable, it falls back to IP-based geolocation, and if that also fails it uses the configured default coordinates.
+4. If you want the most accurate "from my PC" result on Windows, turn on `Settings > Privacy & security > Location` before running the app.
+5. You can still force a specific location by setting `ACCIDENT_PC_LAT`, `ACCIDENT_PC_LON`, and optionally `ACCIDENT_PC_PLACE`, `ACCIDENT_PC_CITY`, `ACCIDENT_PC_REGION`, `ACCIDENT_PC_COUNTRY`.

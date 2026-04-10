@@ -1,3 +1,1 @@
 timestamp_sec,temporal_probability,image_path,camera_id,location,latitude,longitude,vehicles,fire_regions,plates,nearest_hospital,nearest_police_station,legacy_classifier
-9.04,0.0343,accident_frames\accident_9.04s_0.03.jpg,PC_WEBCAM_VIDEO,"Bagru, Jaipur, Rajasthan, India",26.839901,75.561668,car,0,"1901072690312,GPIPCam",Bharadwaj Hospital,Unavailable,Accident:0.5659
-9.08,0.0344,accident_frames\accident_9.08s_0.03.jpg,PC_WEBCAM_VIDEO,"Bagru, Jaipur, Rajasthan, India",26.839901,75.561668,car,0,"190172690312,GPIPCam",Bharadwaj Hospital,Unavailable,Accident:0.6904

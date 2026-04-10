@@ -289,6 +289,15 @@ def startapplication():
                 (255, 255, 255),
                 2,
             )
+            cv2.putText(
+                annotated_frame,
+                f"Location: {location['place'][:80]}",
+                (20, 150),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (255, 255, 255),
+                2,
+            )
             cv2.imwrite(LATEST_FRAME_PATH, annotated_frame)
 
             print(
