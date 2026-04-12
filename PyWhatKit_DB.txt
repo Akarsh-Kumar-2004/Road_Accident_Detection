@@ -68,3 +68,13 @@ Time: 19:57
 Phone Number: +919540034873
 Message: ACCIDENT ALERTCamera ID: PC_WEBCAM_VIDEODetected PC location: Bengaluru, Karnataka, IndiaCoordinates: (12.9833, 77.5833)Google Maps location: https://www.google.com/maps/search/?api=1&query=12.9833,77.5833Video timestamp: 4.37 secondsLegacy classifier result: AccidentLegacy classifier confidence: 62.93%Temporal support score: 26.30%Summary: Temporal accident probability 0.26; vehicles: carDetected plate: Not DetectedNearest hospital: Mallige Medical CentreHospital route: https://www.google.com/maps/dir/?api=1&origin=12.9833,77.5833&destination=12.985247,77.5803846&travelmode=drivingAttached map image: incident_map_4.37s.png
 --------------------
+Date: 11/4/2026
+Time: 9:53
+Phone Number: +919540034873
+Message: ACCIDENT ALERTCamera ID: PC_WEBCAM_VIDEODetected PC location: Meerut, Uttar Pradesh, IndiaCoordinates: (28.9834, 77.706)Google Maps location: https://www.google.com/maps/search/?api=1&query=28.9834,77.706Video timestamp: 4.37 secondsLegacy classifier result: AccidentLegacy classifier confidence: 62.93%Temporal support score: 26.30%Summary: Temporal accident probability 0.26; vehicles: carDetected plate: Not DetectedNearest hospital: Moolchand Sharbati Devi Charitable HospitalHospital route: https://www.google.com/maps/dir/?api=1&origin=28.9834,77.706&destination=28.9844532,77.7069531&travelmode=drivingAttached map image: incident_map_4.37s.png
+--------------------
+Date: 11/4/2026
+Time: 16:59
+Phone Number: +919540034873
+Message: ACCIDENT ALERTCamera ID: PC_WEBCAM_VIDEODetected PC location: Meerut, Uttar Pradesh, IndiaCoordinates: (28.9834, 77.706)Google Maps location: https://www.google.com/maps/search/?api=1&query=28.9834,77.706Video timestamp: 4.37 secondsLegacy classifier result: AccidentLegacy classifier confidence: 62.93%Temporal support score: 26.30%Summary: Temporal accident probability 0.26; vehicles: carDetected plate: Not DetectedNearest hospital: UnavailableHospital route: UnavailableAttached map image: incident_map_4.37s.png
+--------------------
